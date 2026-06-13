@@ -139,15 +139,20 @@ function hexToRgba(hex: string, a: number) {
 // Placed-solar-farm accent (Solario orange) — distinct from the suitability palette.
 const FARM_COLOR = "#f97316"
 
+// Mirrors config.VEG_RISK_NEAR_M: beyond this the nearest line is treated as too
+// far to be the interconnection, so its vegetation no longer affects the score.
+const VEG_RISK_NEAR_M = 2500
+
 const FACTORS: { key: keyof CellProps; label: string; naLabel?: string }[] = [
   { key: "factor_sun", label: "Sun (GHI)" },
   { key: "factor_cloud", label: "Clear sky" },
   { key: "factor_terrain", label: "Terrain" },
   { key: "factor_landuse", label: "Land use" },
   { key: "factor_grid", label: "Grid proximity" },
-  // Higher = clearer corridor on the nearest power line. Null (n/a) when the cell
-  // is too far from the grid for vegetation encroachment to affect the score.
-  { key: "factor_vegetation", label: "Veg. corridor", naLabel: "n/a · far from grid" },
+  // Higher = clearer corridor on the nearest power line. Null (n/a) either when the
+  // cell is too far from the grid for encroachment to matter, or when the nearest
+  // line has no vegetation measurement — the naLabel is chosen per-cell below.
+  { key: "factor_vegetation", label: "Veg. corridor" },
   { key: "factor_model", label: "Model" },
 ]
 
@@ -252,7 +257,15 @@ function CellPanel({ cell, onClose }: { cell: CellProps; onClose: () => void }) 
         {FACTORS.map((f) => {
           const raw = cell[f.key]
           const value = raw == null ? null : Number(raw)
-          return <FactorBar key={f.key} label={f.label} value={value} naLabel={f.naLabel} />
+          // Veg. corridor is n/a for two reasons; distinguish them (mirrors
+          // VEG_RISK_NEAR_M in the Python pipeline): a distant line is not the
+          // interconnection, whereas a near line may simply lack a measurement.
+          let naLabel = f.naLabel
+          if (f.key === "factor_vegetation" && value == null) {
+            const far = cell.dist_powerline_m == null || cell.dist_powerline_m > VEG_RISK_NEAR_M
+            naLabel = far ? "n/a · far from grid" : "n/a · no corridor data"
+          }
+          return <FactorBar key={f.key} label={f.label} value={value} naLabel={naLabel} />
         })}
       </div>
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ee
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from shapely.geometry import LineString
 
@@ -80,7 +81,15 @@ def load_powerline_vegetation() -> pd.DataFrame | None:
     already lives in F_POWERLINES as `voltage_v`)."""
     if not config.F_VEGETATION.exists():
         return None
-    veg = pd.read_csv(config.F_VEGETATION)[["osm_id", "vegetation_risk"]]
+    veg = pd.read_csv(config.F_VEGETATION)
+    # `dist_to_vegetation_m == 0` is a missing-data placeholder (~38% of lines)
+    # that the source feed maps to risk 1.0 ("vegetation right on the line").
+    # Treating absent data as maximum encroachment wrongly pins factor_vegetation
+    # to 0 and triggers the discount for those cells, so mark it unknown (NaN)
+    # instead -> the join leaves veg_risk NaN -> the factor reads "n/a".
+    if "dist_to_vegetation_m" in veg:
+        veg.loc[veg["dist_to_vegetation_m"] == 0.0, "vegetation_risk"] = np.nan
+    veg = veg[["osm_id", "vegetation_risk"]]
     return veg.dropna(subset=["osm_id"])
 
 

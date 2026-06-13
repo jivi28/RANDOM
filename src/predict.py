@@ -21,11 +21,14 @@ Reruns prediction only (no retrain, no GEE sampling):
 from __future__ import annotations
 
 import joblib
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 
 from . import config
+
+# geopandas is imported lazily inside predict()/_attach_place() (the only callers)
+# so the pure scoring/narrative helpers below can be imported without it — see
+# scripts/fix_vegetation_factor.py, which re-derives the GeoJSON through them.
 
 # A factor counts as a clear positive / negative driver beyond these cut-offs.
 POS, NEG = 0.60, 0.40
@@ -287,6 +290,8 @@ def _attach_place(df: pd.DataFrame) -> pd.DataFrame:
     boundary) get None, which the frontend renders as the bare cell id. No-op if
     the boundary files are missing.
     """
+    import geopandas as gpd
+
     if not (config.F_GEMEINDEN.exists() and config.F_KREISE.exists()):
         return df.assign(municipality=None, district=None)
 
@@ -317,7 +322,9 @@ def _attach_place(df: pd.DataFrame) -> pd.DataFrame:
     return df.merge(j[["cell_id", "municipality", "district"]], on="cell_id", how="left")
 
 
-def predict() -> gpd.GeoDataFrame:
+def predict() -> "gpd.GeoDataFrame":  # noqa: F821 (gpd imported lazily below)
+    import geopandas as gpd
+
     bundle = joblib.load(config.F_MODEL)
     model, feats = bundle["model"], bundle["features"]
 
