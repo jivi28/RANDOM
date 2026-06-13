@@ -94,14 +94,18 @@ def load_powerline_vegetation() -> pd.DataFrame | None:
 
 
 def add_vegetation_risk(df: pd.DataFrame, lines: gpd.GeoDataFrame) -> pd.DataFrame:
-    """Attach `veg_risk`: vegetation encroachment of each cell's *nearest* power
-    line. Mirrors add_powerline_distance's nearest-line join so the distance and
-    the risk describe the same line. No-op (leaves df unchanged) if the
-    vegetation CSV or line osm_ids are absent."""
+    """Attach `veg_risk`: vegetation encroachment of each cell's nearest *measured*
+    power line. Lines whose risk is unknown (the dist=0 placeholder, dropped to NaN
+    in load_powerline_vegetation) are skipped before the join so a cell reports the
+    nearest line we actually have corridor data for, rather than NaN. No-op (leaves
+    df unchanged) if the vegetation CSV or line osm_ids are absent."""
     veg = load_powerline_vegetation()
     if veg is None or "osm_id" not in lines.columns:
         return df
     lines = lines.merge(veg, on="osm_id", how="left")
+    lines = lines[lines["vegetation_risk"].notna()]
+    if lines.empty:
+        return df
     pts = gpd.GeoDataFrame(
         df.copy(), geometry=gpd.points_from_xy(df.lon, df.lat), crs="EPSG:4326"
     ).to_crs("EPSG:3035")

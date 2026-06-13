@@ -131,6 +131,13 @@ function cellPlace(p: Pick<CellProps, "municipality" | "district" | "cell_id">):
   return { title: (mun || dist) as string, sub: `#${p.cell_id}` }
 }
 
+// Decimal degrees with hemisphere suffix, e.g. "48.137° N, 11.576° E".
+function formatCoords(lat: number, lon: number): string {
+  const part = (v: number, pos: string, neg: string) =>
+    `${Math.abs(v).toFixed(3)}° ${v >= 0 ? pos : neg}`
+  return `${part(lat, "N", "S")}, ${part(lon, "E", "W")}`
+}
+
 function hexToRgba(hex: string, a: number) {
   const n = parseInt(hex.slice(1), 16)
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
@@ -220,6 +227,11 @@ function CellPanel({ cell, onClose }: { cell: CellProps; onClose: () => void }) 
             {cellPlace(cell).sub && (
               <div style={{ fontFamily: "monospace", fontSize: "10px", letterSpacing: "0.12em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginTop: "3px" }}>
                 {cellPlace(cell).sub}
+              </div>
+            )}
+            {cell.lat != null && cell.lon != null && (
+              <div style={{ fontFamily: "monospace", fontSize: "10px", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>
+                {formatCoords(cell.lat, cell.lon)}
               </div>
             )}
           </div>
