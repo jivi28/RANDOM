@@ -45,7 +45,18 @@ def feature_image(tier2: bool = True) -> "ee.Image":
         ee.ImageCollection(config.WORLDCOVER).first().select("Map").rename("landcover")
     )
 
-    return img.addBands([slope, ghi, landcover])
+    # Mean cloud fraction (0..1) over recent years. Explicit "cloudiness" signal:
+    # higher = more clouds = worse for solar. Multi-year mean smooths weather noise.
+    cloud = (
+        ee.ImageCollection(config.MODIS_CLOUD)
+        .filterDate("2020-01-01", "2024-12-31")
+        .select("Cloud_Fraction_Mean_Mean")
+        .mean()
+        .multiply(0.0001)
+        .rename("cloud")
+    )
+
+    return img.addBands([slope, ghi, landcover, cloud])
 
 
 def _sample_chunk(img: "ee.Image", pts: list[dict]) -> list[dict]:

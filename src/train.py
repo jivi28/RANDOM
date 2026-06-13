@@ -21,7 +21,7 @@ from . import config
 
 # Tier-2 numeric features to include when present (landcover stays categorical
 # and is used only for masking in predict.py, not as a model feature).
-TIER2_NUMERIC = ["slope", "ghi", "dist_powerline_m"]
+TIER2_NUMERIC = ["slope", "ghi", "cloud", "dist_powerline_m"]
 
 
 def feature_columns(df: pd.DataFrame) -> list[str]:

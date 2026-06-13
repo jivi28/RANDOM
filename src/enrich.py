@@ -71,6 +71,40 @@ def add_powerline_distance(df: pd.DataFrame, lines: gpd.GeoDataFrame) -> pd.Data
 
 
 # --------------------------------------------------------------------------- #
+# Power-line vegetation encroachment -> per-cell risk of its nearest line
+# --------------------------------------------------------------------------- #
+def load_powerline_vegetation() -> pd.DataFrame | None:
+    """vegetation_risk per power-line osm_id from the project-local CSV, or None.
+
+    The `voltage` column is ignored (it is `unknown` in this feed; real voltage
+    already lives in F_POWERLINES as `voltage_v`)."""
+    if not config.F_VEGETATION.exists():
+        return None
+    veg = pd.read_csv(config.F_VEGETATION)[["osm_id", "vegetation_risk"]]
+    return veg.dropna(subset=["osm_id"])
+
+
+def add_vegetation_risk(df: pd.DataFrame, lines: gpd.GeoDataFrame) -> pd.DataFrame:
+    """Attach `veg_risk`: vegetation encroachment of each cell's *nearest* power
+    line. Mirrors add_powerline_distance's nearest-line join so the distance and
+    the risk describe the same line. No-op (leaves df unchanged) if the
+    vegetation CSV or line osm_ids are absent."""
+    veg = load_powerline_vegetation()
+    if veg is None or "osm_id" not in lines.columns:
+        return df
+    lines = lines.merge(veg, on="osm_id", how="left")
+    pts = gpd.GeoDataFrame(
+        df.copy(), geometry=gpd.points_from_xy(df.lon, df.lat), crs="EPSG:4326"
+    ).to_crs("EPSG:3035")
+    lines_m = lines.to_crs("EPSG:3035")[["geometry", "vegetation_risk"]]
+    joined = gpd.sjoin_nearest(pts, lines_m)
+    joined = joined[~joined.index.duplicated(keep="first")]
+    df = df.drop(columns=["veg_risk"], errors="ignore")
+    df["veg_risk"] = joined["vegetation_risk"].round(3)
+    return df
+
+
+# --------------------------------------------------------------------------- #
 # WDPA protected areas -> flag
 # --------------------------------------------------------------------------- #
 def add_protected_flag(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,12 +142,15 @@ def add_protected_flag(df: pd.DataFrame) -> pd.DataFrame:
 
 def enrich_grid() -> pd.DataFrame:
     df = pd.read_csv(config.F_GRID_FEATURES)
-    df = add_powerline_distance(df, ensure_powerlines())
+    lines = ensure_powerlines()
+    df = add_powerline_distance(df, lines)
+    df = add_vegetation_risk(df, lines)        # nearest-line vegetation encroachment
     df = add_protected_flag(df)
     df.to_csv(config.F_GRID_FEATURES, index=False)
     n_prot = int((df["protected"] == 1).sum())
-    print(f"[enrich] grid: dist_powerline_m filled, {n_prot} protected cells "
-          f"-> {config.F_GRID_FEATURES.name}")
+    n_veg = int(df["veg_risk"].notna().sum()) if "veg_risk" in df else 0
+    print(f"[enrich] grid: dist_powerline_m filled, {n_prot} protected cells, "
+          f"veg_risk on {n_veg} cells -> {config.F_GRID_FEATURES.name}")
     return df
 
 

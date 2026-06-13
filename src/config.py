@@ -34,11 +34,20 @@ EMBEDDING_BANDS = [f"A{i:02d}" for i in range(64)]  # A00..A63
 WORLDCOVER = "ESA/WorldCover/v200"          # 10 m land cover (one image collection)
 SRTM = "USGS/SRTMGL1_003"                    # elevation -> slope
 ERA5_MONTHLY = "ECMWF/ERA5_LAND/MONTHLY_AGGR"  # surface_solar_radiation_downwards_sum
+# MODIS monthly atmosphere product -> mean cloud fraction (Cloud_Fraction_Mean_Mean,
+# 0..1 after the 0.0001 scale). The explicit "how cloudy is the sky" signal that
+# complements GHI (which already nets out clouds in the radiation it reports).
+MODIS_CLOUD = "MODIS/061/MOD08_M3"
 WDPA = "WCMC/WDPA/current/polygons"            # World Database on Protected Areas
 
 # Local power-line file (auto-fetched from OSM if absent; drop in an official
 # powerlines_bavaria.geojson to override). Powers the `factor_grid` factor.
 F_POWERLINES = RAW / "powerlines_bavaria.geojson"
+
+# Per-power-line vegetation encroachment (osm_id -> vegetation_risk in [0,1],
+# 1 = vegetation right on the line, 0 = corridor clear). Keyed to F_POWERLINES by
+# osm_id. Optional: powers the `factor_vegetation` factor / vegetation discount.
+F_VEGETATION = RAW / "vegetation_risk_data.csv"
 
 # WorldCover class codes we treat as *non-buildable* for solar (exclusion mask).
 # 10 tree, 50 built-up, 80 perm. water, 90 herbaceous wetland, 95 mangrove.
@@ -102,6 +111,30 @@ RF_PARAMS = dict(
 )
 SPATIAL_SPLIT_KM = 25.0       # block size for spatial train/test split
 
+# --- Solar-resource weighting ----------------------------------------------
+# The RandomForest learns "looks like existing solar land"; on its own it does
+# not guarantee that sunnier / less-cloudy cells outrank cloudier ones. We nudge
+# the model score by a solar-resource factor (sunlight + cloud cover) so the
+# final rating respects the weather: clear, high-irradiance cells move up, cloudy
+# / low-irradiance cells move down.
+#   adjusted = model_score * (1 + RESOURCE_WEIGHT * (resource - 0.5))
+# resource in [0,1] (0.5 = grid-average), so a fully sunny/clear cell gets up to
+# +RESOURCE_WEIGHT/2 and a fully cloudy/dark cell down to -RESOURCE_WEIGHT/2.
+RESOURCE_WEIGHT = 0.50        # 0 disables the nudge; 0.5 = +/-25% at the extremes
+# Share of the resource factor that comes from explicit cloud cover vs. GHI.
+# Falls back to GHI-only automatically when no cloud column is present.
+CLOUD_SHARE = 0.40
+
+# --- Vegetation-encroachment discount --------------------------------------
+# A cell's nearest power line is its likely grid interconnection; if that line's
+# corridor is overgrown (high vegetation_risk) the interconnection is a weaker
+# selling point (reliability / clearing cost), so we *discount* the score:
+#   adjusted = score * (1 - VEG_RISK_WEIGHT * veg_risk)
+# Discount-only (a clear corridor never inflates a cell) and gated to cells
+# actually near the grid, so a distant overgrown line never penalises far land.
+VEG_RISK_WEIGHT = 0.15        # 0 disables; 0.15 = up to -15% when fully encroached
+VEG_RISK_NEAR_M = 2500.0      # only discount cells within this dist of a power line
+
 # --- Output ----------------------------------------------------------------
 # Suitability score thresholds -> classes (probability of "suitable").
 CLASS_THRESHOLDS = {"good": 0.60, "okay": 0.35}  # else "bad"; excluded -> "excluded"
@@ -115,3 +148,8 @@ F_LABEL_FEATURES = INTERIM / "label_features.csv"
 F_GRID_FEATURES = INTERIM / "grid_features.csv"
 F_MODEL = MODELS / "suitability_rf.pkl"
 F_OUTPUT = OUTPUTS / "bavaria_suitability.geojson"
+
+# Administrative boundary files (bundled in public/geo) used to label each cell
+# with a human place name: municipality (Gemeinde) + district (Landkreis).
+F_GEMEINDEN = ROOT / "public" / "geo" / "bavaria_gemeinden.geojson"
+F_KREISE = ROOT / "public" / "geo" / "bavaria_kreise.geojson"
