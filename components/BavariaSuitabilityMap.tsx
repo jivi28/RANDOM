@@ -4,15 +4,15 @@ import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ComposableMap, Geographies, Geography } from "react-simple-maps"
 
-// ─── Contract with the aiclassification branch ────────────────────────────────
-// Source of truth: outputs/bavaria_suitability.geojson on the aiclassification
-// branch (EPSG:4326, lon/lat). 3,061 grid cells, one Polygon each.
-// Served via the raw GitHub URL so a fresh clone works with zero setup; a local
-// copy also lives at /public/bavaria_suitability.geojson for offline dev.
+// ─── Contract with the aiclassification pipeline ──────────────────────────────
+// Source of truth: outputs/bavaria_suitability.geojson, produced by the Python
+// pipeline now merged into main (EPSG:4326, lon/lat). 3,061 grid cells, one
+// Polygon each. Served via the raw GitHub URL so a fresh clone works with zero
+// setup; a local copy also lives at /public/bavaria_suitability.geojson.
 // Set NEXT_PUBLIC_SUITABILITY_GEOJSON to override (e.g. "/bavaria_suitability.geojson").
 const GEOJSON_URL =
   process.env.NEXT_PUBLIC_SUITABILITY_GEOJSON ||
-  "https://raw.githubusercontent.com/jivi28/RANDOM/aiclassification/outputs/bavaria_suitability.geojson"
+  "https://raw.githubusercontent.com/jivi28/RANDOM/main/outputs/bavaria_suitability.geojson"
 
 type SuitabilityClass = "good" | "okay" | "bad" | "excluded"
 
