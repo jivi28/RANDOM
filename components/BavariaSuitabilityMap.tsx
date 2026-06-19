@@ -19,7 +19,7 @@ import { type Farm, loadFarms, saveFarms, newFarmId } from "@/lib/farms"
 // Set NEXT_PUBLIC_SUITABILITY_GEOJSON to override (e.g. "/bavaria_suitability.geojson").
 const GEOJSON_URL =
   process.env.NEXT_PUBLIC_SUITABILITY_GEOJSON ||
-  "https://raw.githubusercontent.com/jivi28/Solario/main/outputs/bavaria_suitability.geojson"
+  "https://raw.githubusercontent.com/jivi28/Solaris/main/outputs/bavaria_suitability.geojson"
 
 // Administrative context, bundled locally (see public/geo). Regierungsbezirke
 // (7) draw at every zoom; the finer Landkreise (96) fade in once you zoom past
